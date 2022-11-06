@@ -3,34 +3,38 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <sys/sysinfo.h>
-int *input;
-int fileTotalSize;
+#include <sys/mman.h>
+#include <string.h>
+struct key_value
+{
+    unsigned int key;
+    char *value;
+};
+
+struct key_value **input;
+int numberOfEntre;
 int threadTotal;
 int threadCount = 0;
-/*
-    Current Questions:
 
-    format of the file
-    correct size of pointer
-    merging at the ende
-*/
 void combineAllMerge(int lowIndex, int middleIndex, int highIndex)
 {
-    int *leftIndex;
+    struct key_value **leftIndex;
     int leftIndexSize = middleIndex - lowIndex + 1;
-    leftIndex = malloc(sizeof(int) * (leftIndexSize));
+    leftIndex = malloc(sizeof(struct key_value *) * (leftIndexSize));
 
-    int *rightIndex;
+    struct key_value **rightIndex;
     int rightIndexSize = highIndex - middleIndex;
-    rightIndex = malloc(sizeof(int) * (rightIndexSize));
+    rightIndex = malloc(sizeof(struct key_value *) * (rightIndexSize));
 
     for (int i = 0; i < leftIndexSize; i++)
     {
-        leftIndex[i] = input[i];
+        leftIndex[i]->key = input[i]->key;
+        leftIndex[i]->value = input[i]->value;
     }
     for (int j = 0; j < rightIndexSize; j++)
     {
-        rightIndex[j] = input[middleIndex + j + 1];
+        rightIndex[j]->key = input[middleIndex + j + 1]->key;
+        rightIndex[j]->value = input[middleIndex + j + 1]->value;
     }
 
     int indexer = lowIndex;
@@ -39,14 +43,16 @@ void combineAllMerge(int lowIndex, int middleIndex, int highIndex)
 
     while (leftCounter < leftIndexSize && rightCounter < rightIndexSize)
     {
-        if (rightIndex[rightCounter] >= leftIndex[leftCounter])
+        if (rightIndex[rightCounter]->key >= leftIndex[leftCounter]->key)
         {
-            input[indexer] = leftIndex[leftCounter];
+            input[indexer]->key = leftIndex[leftCounter]->key;
+            input[indexer]->value = leftIndex[leftCounter]->value;
             leftCounter++;
         }
         else
         {
-            input[indexer] = rightIndex[rightCounter];
+            input[indexer]->key = rightIndex[rightCounter]->key;
+            input[indexer]->value = rightIndex[rightCounter]->value;
             rightCounter++;
         }
         indexer++;
@@ -84,8 +90,8 @@ void *merge_sort(void *args)
 {
     int threadIndex = threadCount;
     threadCount++;
-    int lowIndex = (threadIndex) * (fileTotalSize / threadTotal);
-    int highIndex = (threadIndex + 1) * (fileTotalSize / threadTotal) - 1;
+    int lowIndex = (threadIndex) * (numberOfEntre / threadTotal);
+    int highIndex = (threadIndex + 1) * (numberOfEntre / threadTotal) - 1;
     int middleIndex = lowIndex + (highIndex - lowIndex) / 2;
     if (highIndex > lowIndex)
     {
@@ -93,19 +99,30 @@ void *merge_sort(void *args)
         merge(middleIndex + 1, highIndex);
         combineAllMerge(lowIndex, middleIndex, highIndex);
     }
-    return;
 }
 
 int main(int argc, char *argv[])
 {
     FILE *inputFile;
-    inputFile = fopen(argv[1], "w+");
+    inputFile = fopen(argv[1], "r+");
     fseek(inputFile, 0L, SEEK_END);
-    int sizeOfFile = (int)ftell(inputFile);
-    fileTotalSize = sizeOfFile / 4;
-    input = malloc(sizeof *input * sizeOfFile); // probably not right but you get the idea
+    size_t sizeOfFile = ftell(inputFile);
+    numberOfEntre = sizeOfFile / 100;
+    input = malloc(sizeof(struct key_value *) * numberOfEntre);
     fseek(inputFile, 0, SEEK_SET);
-    fread(input, sizeof(input), 1, inputFile);
+    char *address = mmap(0, sizeOfFile, PROT_READ, MAP_PRIVATE, inputFile, 0);
+
+    for (int i = 0; i < sizeOfFile; i += 100)
+    {
+        char element[4];
+        char nintySixByte[96];
+        memcpy(element, address + i, 4);
+        memcpy(nintySixByte, address + i + 4, 96);
+
+        input[i / 100]->key = strtoul(element, NULL, 0);
+        input[i / 100]->value = strdup(nintySixByte);
+    }
+
     threadTotal = get_nprocs();
     pthread_t threads[threadTotal];
     for (int i = 0; i < threadTotal; i++)
@@ -119,7 +136,7 @@ int main(int argc, char *argv[])
 
     for (int i = 0; i < threadTotal; i++)
     {
-        combineAllMerge(0, ((i + 1) * (fileTotalSize / threadTotal)) / 2, (i + 1) * (fileTotalSize / threadTotal) - 1);
+        combineAllMerge(0, ((i + 1) * (numberOfEntre / threadTotal)) / 2, (i + 1) * (numberOfEntre / threadTotal) - 1);
     }
 
     FILE *outputFile;
