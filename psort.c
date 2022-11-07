@@ -104,24 +104,24 @@ void *merge_sort(void *args)
 int main(int argc, char *argv[])
 {
     FILE *inputFile;
-    inputFile = fopen(argv[1], "r+");
+    inputFile = fopen(argv[1], "r");
     fseek(inputFile, 0L, SEEK_END);
     size_t sizeOfFile = ftell(inputFile);
     numberOfEntre = sizeOfFile / 100;
     input = malloc(sizeof(struct key_value *) * numberOfEntre);
-    fseek(inputFile, 0, SEEK_SET);
-    char *address = mmap(0, sizeOfFile, PROT_READ, MAP_PRIVATE, inputFile, 0);
+    fseek(inputFile, 0L, SEEK_SET);
+    char *address = mmap(NULL, sizeOfFile, PROT_READ, MAP_PRIVATE, inputFile, 0);
 
     for (int i = 0; i < sizeOfFile; i += 100)
     {
         char element[4];
         char nintySixByte[96];
-        memcpy(element, address + i, 4);
-        memcpy(nintySixByte, address + i + 4, 96);
-
-        input[i / 100]->key = strtoul(element, NULL, 0);
+        memcpy((void*) element, &address + i, 4);
+        memcpy((void*) nintySixByte, &address + i + 4, 96);
+        input[i / 100]->key = ls(element, NULL, 0);
         input[i / 100]->value = strdup(nintySixByte);
     }
+    return;
 
     threadTotal = get_nprocs();
     pthread_t threads[threadTotal];
