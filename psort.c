@@ -5,36 +5,37 @@
 #include <sys/sysinfo.h>
 #include <sys/mman.h>
 #include <string.h>
+
 struct key_value
 {
     unsigned int key;
     char *value;
 };
 
-struct key_value **input;
-int numberOfEntre;
+struct key_value *input;
+int numberOfEntries;
 int threadTotal;
 int threadCount = 0;
 
 void combineAllMerge(int lowIndex, int middleIndex, int highIndex)
 {
-    struct key_value **leftIndex;
+    struct key_value *leftIndex;
     int leftIndexSize = middleIndex - lowIndex + 1;
     leftIndex = malloc(sizeof(struct key_value *) * (leftIndexSize));
 
-    struct key_value **rightIndex;
+    struct key_value *rightIndex;
     int rightIndexSize = highIndex - middleIndex;
     rightIndex = malloc(sizeof(struct key_value *) * (rightIndexSize));
 
     for (int i = 0; i < leftIndexSize; i++)
     {
-        leftIndex[i]->key = input[i]->key;
-        leftIndex[i]->value = input[i]->value;
+        leftIndex[i]= input[i];
+     
     }
     for (int j = 0; j < rightIndexSize; j++)
     {
-        rightIndex[j]->key = input[middleIndex + j + 1]->key;
-        rightIndex[j]->value = input[middleIndex + j + 1]->value;
+        rightIndex[j] = input[middleIndex + j + 1];
+        
     }
 
     int indexer = lowIndex;
@@ -43,16 +44,16 @@ void combineAllMerge(int lowIndex, int middleIndex, int highIndex)
 
     while (leftCounter < leftIndexSize && rightCounter < rightIndexSize)
     {
-        if (rightIndex[rightCounter]->key >= leftIndex[leftCounter]->key)
+        if (rightIndex[rightCounter].key >= leftIndex[leftCounter].key)
         {
-            input[indexer]->key = leftIndex[leftCounter]->key;
-            input[indexer]->value = leftIndex[leftCounter]->value;
+            input[indexer] = leftIndex[leftCounter];
+       
             leftCounter++;
         }
         else
         {
-            input[indexer]->key = rightIndex[rightCounter]->key;
-            input[indexer]->value = rightIndex[rightCounter]->value;
+            input[indexer]= rightIndex[rightCounter];
+           
             rightCounter++;
         }
         indexer++;
@@ -90,8 +91,8 @@ void *merge_sort(void *args)
 {
     int threadIndex = threadCount;
     threadCount++;
-    int lowIndex = (threadIndex) * (numberOfEntre / threadTotal);
-    int highIndex = (threadIndex + 1) * (numberOfEntre / threadTotal) - 1;
+    int lowIndex = (threadIndex) * (numberOfEntries / threadTotal);
+    int highIndex = (threadIndex + 1) * (numberOfEntries / threadTotal) - 1;
     int middleIndex = lowIndex + (highIndex - lowIndex) / 2;
     if (highIndex > lowIndex)
     {
@@ -105,25 +106,46 @@ int main(int argc, char *argv[])
 {
     FILE *inputFile;
     inputFile = fopen(argv[1], "r");
+    if(inputFile == NULL){
+       fprintf(stderr, "An error has occurred\n");
+        exit(0);
+    }
     fseek(inputFile, 0L, SEEK_END);
     size_t sizeOfFile = ftell(inputFile);
-    numberOfEntre = sizeOfFile / 100;
-    input = malloc(sizeof(struct key_value *) * numberOfEntre);
+    numberOfEntries = sizeOfFile / 100;
+    if(sizeOfFile ==0){
+        fprintf(stderr, "An error has occurred\n");
+        exit(0);
+    }
+   
+    input = malloc(sizeof(struct key_value *) * numberOfEntries);
     fseek(inputFile, 0L, SEEK_SET);
     char *address = mmap(NULL, sizeOfFile, PROT_READ, MAP_PRIVATE, inputFile, 0);
-
+ 
     for (int i = 0; i < sizeOfFile; i += 100)
     {
         char element[4];
         char nintySixByte[96];
+     
         memcpy((void*) element, &address + i, 4);
+   
         memcpy((void*) nintySixByte, &address + i + 4, 96);
-        input[i / 100]->key = ls(element, NULL, 0);
-        input[i / 100]->value = strdup(nintySixByte);
+
+        int temp = i/100;
+
+        input[temp].key = *(int*)element;
+        input[temp].value = strdup(nintySixByte);
+      
     }
-    return;
+  /*   if(sizeOfFile ==100){
+        FILE *outputFile;
+    outputFile = fopen(argv[2], "w+");
+    fwrite(input, sizeof input, 1, outputFile);
+    exit(0);
+    }*/
 
     threadTotal = get_nprocs();
+  
     pthread_t threads[threadTotal];
     for (int i = 0; i < threadTotal; i++)
     {
@@ -136,7 +158,7 @@ int main(int argc, char *argv[])
 
     for (int i = 0; i < threadTotal; i++)
     {
-        combineAllMerge(0, ((i + 1) * (numberOfEntre / threadTotal)) / 2, (i + 1) * (numberOfEntre / threadTotal) - 1);
+        combineAllMerge(0, ((i + 1) * (numberOfEntries / threadTotal)) / 2, (i + 1) * (numberOfEntries / threadTotal) - 1);
     }
 
     FILE *outputFile;

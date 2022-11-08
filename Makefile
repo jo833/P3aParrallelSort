@@ -1,2 +1,2 @@
 all:
-	gcc psort.c -o psort
+	gcc -g psort.c -o psort
